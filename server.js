@@ -9,34 +9,56 @@ var client = null;
 var PORT = 9000;
 
 var volumes = [];
-var thresh = 10;
-
+var peakCounter = 0;
 
 function requestHandler(req, res) {
 	var url_parts = url.parse(req.url, true);
 	var sample = parseFloat(url_parts.query.volume);
-	console.log ("SAMPLe = " + sample);
+	console.log("New Sample = " + sample);
+
 	var average = avg();
-	if (volumes.length > 10){
-		if (((sample - average)/stdv()) > 2.0){
-			res.end();
-			return;
+	var deviation = stdv();
+
+	console.log("Current average = " + average);
+	console.log("Current deviation = " + deviation);
+
+	var peak = false;
+
+	if (volumes.length > 5) {
+		if (sample > average && (Math.abs(sample - average) / deviation) > 1.2) {
+			console.log("PEAK DETECTED.");
+			peak = true;
 		}
-		if (volumes.length == 20) {
+
+		if (volumes.length == 10) {
 			volumes.shift()
 		}
 	}
+
 	volumes.push(sample);
-	res.end();
-	if (client != null){
-		if (avg() > thresh){
-			client.send("10");	
-		}
-		client.send("-10");	
+
+	if (peak) {
+		peakCounter++;
 	}
-	console.log ("AVG = " + avg());
-	console.log("STDV = " + stdv());
+
+	res.end();
+
+	if (client != null) {
+		if (peakCounter >= 2) {
+			console.log("Lowering music volume");
+			client.send("-30");
+		}	
+	}
+	
+	if (!peak) {
+		console.log("Reseting peak count.");
+		peakCounter = 0;
+	}
+
+	console.log ("New AVG = " + avg());
+	console.log("New STDV = " + stdv());
 	console.log(volumes);
+	console.log("------\n");
 }
 
 function avg () {
@@ -51,7 +73,7 @@ function stdv () {
 	var average = avg();
 	var sum = 0;
 	for (var i = 0; i < volumes.length; ++i){
-		sum += (( volumes[i] - average)^2);
+		sum += (volumes[i] - average) * (volumes[i] - average);
 	};
 	return Math.sqrt(sum / volumes.length);
 }
@@ -65,7 +87,7 @@ server.listen(PORT, function() {
 
 wss.on("connection", function(wsocket) {
     client = wsocket;
-    wsocket.send("50");
+	console.log("WebSocket client connected.");
 
     wsocket.on("message", function(message) {
 

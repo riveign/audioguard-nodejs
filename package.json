@@ -11,9 +11,6 @@
   },
   "homepage": "https://github.com/riveign/audioguard-nodejs#readme",
   "dependencies": {
-    "body-parser": "^1.15.2",
-    "connect": "^3.5.0",
-    "express": "^4.14.0",
     "ws": "*"
   }
 }
