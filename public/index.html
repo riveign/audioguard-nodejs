@@ -1,0 +1,30 @@
+<html>
+    <head>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    </head>
+    <h1> AudioGuard Configuration </h1>
+    <button id="dec">Decrease Target Volume -</button>
+    <button id="inc">Increase Target Volume +</button>
+    <h3> Current volume at: <span id="vol">1</span><h3>
+
+    <script>
+        "use strict";
+        $(document).ready(function(){
+            $("#dec").click(dec);
+            $("#inc").click(inc);
+            console.log("ready");
+        });
+
+        function inc () {
+            $.post('/inc', function(data) {
+                $("#vol").text(data);
+            });
+        }
+
+        function dec () {
+            $.post('/dec', function(data){
+                $("#vol").text(data);
+            });
+        }
+    </script>
+</html>
