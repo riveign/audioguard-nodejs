@@ -3,6 +3,9 @@
 var ws = require("ws");
 var http = require("http");
 var url = require("url");
+var dgram = require('dgram');
+
+var udpServer = dgram.createSocket('udp4');
 
 var client = null;
 
@@ -11,9 +14,27 @@ var PORT = 9000;
 var volumes = [];
 var peakCounter = 0;
 
-function requestHandler(req, res) {
-	var url_parts = url.parse(req.url, true);
-	var sample = parseFloat(url_parts.query.volume);
+const MAX_SAMPLES = 20;
+const MAX_DEVIATIONS = 1.5;
+
+udpServer.on('error', (err) => {
+	console.log(`server error:\n${err.stack}`);
+	udpServer.close();
+});
+
+udpServer.on('message', (msg, rinfo) => {
+	var sample = msg.readDoubleLE(0);
+	onSampleReceived(sample);
+});
+
+udpServer.on('listening', () => {
+	var address = udpServer.address();
+	console.log(`server listening ${address.address}:${address.port}`);
+});
+
+udpServer.bind(9001);
+
+function onSampleReceived(sample) {
 	console.log("New Sample = " + sample);
 
 	var average = avg();
@@ -25,12 +46,12 @@ function requestHandler(req, res) {
 	var peak = false;
 
 	if (volumes.length > 5) {
-		if (sample > average && (Math.abs(sample - average) / deviation) > 1.2) {
+		if (sample > average && (Math.abs(sample - average) / deviation) > MAX_DEVIATIONS) {
 			console.log("PEAK DETECTED.");
 			peak = true;
 		}
 
-		if (volumes.length == 10) {
+		if (volumes.length == MAX_SAMPLES) {
 			volumes.shift()
 		}
 	}
@@ -41,12 +62,11 @@ function requestHandler(req, res) {
 		peakCounter++;
 	}
 
-	res.end();
-
 	if (client != null) {
-		if (peakCounter >= 2) {
+		if (peakCounter > 1) {
 			console.log("Lowering music volume");
-			client.send("-30");
+			var amount = peakCounter * 5;
+			client.send("-" + amount.toString());
 		}	
 	}
 	
@@ -78,7 +98,11 @@ function stdv () {
 	return Math.sqrt(sum / volumes.length);
 }
 
-var server = http.createServer(requestHandler);
+var server = http.createServer(function(req, res) {
+	 console.log("Got a HTTP request.");
+	 res.end();
+});
+
 var wss = new ws.Server({ server: server });
 
 server.listen(PORT, function() {
@@ -92,4 +116,8 @@ wss.on("connection", function(wsocket) {
     wsocket.on("message", function(message) {
 
     });
+
+	wsocket.on("close", function() {
+		client = null;
+	})
 });
